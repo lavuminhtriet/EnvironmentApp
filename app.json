@@ -8,9 +8,11 @@
     "scheme": "environmentapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -19,12 +21,20 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.EnvironmentApp"
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
+    "extra": {
+      "androidClientId": "YOUR_ANDROID_OAUTH_CLIENT_ID",
+      "webClientId": "184252200932-ebbc2j7889bbbqncv8m620hkq2mdks7l.apps.googleusercontent.com"
+    },
+
     "plugins": [
       "expo-router",
       [
@@ -38,8 +48,10 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

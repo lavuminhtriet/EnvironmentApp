@@ -1,17 +1,32 @@
-import { Link } from 'expo-router';
-import { StyleSheet } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Text, Button } from 'react-native-paper';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 export default function ModalScreen() {
+  const router = useRouter();
+
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">This is a modal</ThemedText>
-      <Link href="/" dismissTo style={styles.link}>
-        <ThemedText type="link">Go to home screen</ThemedText>
-      </Link>
-    </ThemedView>
+    <View style={styles.container}>
+      {/* Hiển thị thanh trạng thái phù hợp với Modal */}
+      <StatusBar style="light" />
+      
+      <Text variant="headlineMedium" style={styles.title}>Thông báo</Text>
+      <Text variant="bodyMedium" style={styles.message}>
+        Đây là màn hình Modal mẫu. Bạn có thể dùng nó để hiển thị chi tiết thông tin hoặc xác nhận hành động.
+      </Text>
+
+      {/* Nút đóng Modal */}
+      <Button 
+        mode="contained" 
+        onPress={() => router.back()} 
+        style={styles.button}
+        buttonColor="#2E7D32"
+      >
+        Đóng
+      </Button>
+    </View>
   );
 }
 
@@ -21,9 +36,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#fff',
   },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
+  title: {
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#2E7D32',
+  },
+  message: {
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#666',
+  },
+  button: {
+    marginTop: 10,
+    width: '100%',
   },
 });
