@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Alert, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Title, Text } from 'react-native-paper';
+import { TextInput, Button, Title, Text, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
+import * as Location from 'expo-location'; 
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -12,9 +13,43 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<string>(''); 
+
+  
+  const getCurrentAddress = async (): Promise<string> => {
+    try {
+      setLocationStatus('Đang lấy vị trí...');
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        return ''; 
+      }
+
+      let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      
+      
+      let addressList = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude
+      });
+
+      if (addressList.length > 0) {
+        const addr = addressList[0];
+        
+        const district = addr.district || addr.subregion || '';
+        const city = addr.city || addr.region || '';
+        return `${district}, ${city}`.replace(/^, /, ''); 
+      }
+      return '';
+    } catch (error) {
+      console.log("Lỗi lấy vị trí:", error);
+      return '';
+    } finally {
+      setLocationStatus('');
+    }
+  };
 
   const handleRegister = async () => {
-    // 1. Validate dữ liệu đầu vào
+    
     if (!email || !password || !confirmPassword) {
       Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin');
       return;
@@ -29,23 +64,33 @@ export default function RegisterScreen() {
     }
 
     setLoading(true);
+    
     try {
-      // 2. Tạo tài khoản Authentication
+      
+      const detectedAddress = await getCurrentAddress();
+
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 3. Tạo hồ sơ User trong Firestore (Quan trọng cho FR-1.2)
+      
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
-        displayName: email.split('@')[0], // Tạm lấy tên từ email
+        displayName: email.split('@')[0],
         role: 'user',
         createdAt: serverTimestamp(),
         photoURL: null,
-        phoneNumber: ''
+        phoneNumber: '',
+        address: detectedAddress || 'Chưa cập nhật', 
+        badge: 'Tân binh', 
+        score: 0
       });
 
-      Alert.alert('Thành công', 'Tài khoản đã được tạo! Mời bạn đăng nhập.');
-      router.replace('/'); // Quay về màn hình đăng nhập
+      Alert.alert(
+        'Thành công', 
+        `Tài khoản đã được tạo!\n(Khu vực mặc định: ${detectedAddress || 'Không xác định'})`
+      );
+      router.replace('/'); 
 
     } catch (error: any) {
       let msg = error.message;
@@ -93,6 +138,9 @@ export default function RegisterScreen() {
           secureTextEntry
           style={styles.input}
         />
+
+        
+        {locationStatus ? <Text style={{textAlign: 'center', color: '#666', marginBottom: 10}}>{locationStatus}</Text> : null}
 
         <Button 
           mode="contained" 
