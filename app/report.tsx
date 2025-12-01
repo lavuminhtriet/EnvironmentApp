@@ -1,22 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { View, Image, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, Card } from 'react-native-paper';
+import { View, Image, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { TextInput, Button, Text, Modal, Portal, IconButton, Avatar } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { useRouter, Stack } from 'expo-router'; 
 import { db, storage, auth } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Video, ResizeMode } from 'expo-av'; // [MỚI] Import Video
+import { addPoints } from '../utils/gamification';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { styles } from '../styles/report.styles';
+
+const VideoPreview = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+  });
+  return (
+    <View style={styles.videoContainer}>
+      <VideoView style={styles.videoView} player={player} nativeControls={false} contentFit="cover" />
+    </View>
+  );
+};
 
 export default function ReportScreen() {
   const router = useRouter();
   const [description, setDescription] = useState('');
-  const [mediaUri, setMediaUri] = useState<string | null>(null); // Đổi tên từ imageUri -> mediaUri
-  const [mediaType, setMediaType] = useState<'image' | 'video'>('image'); // [MỚI] Lưu loại file
+  const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [location, setLocation] = useState<Location.LocationObjectCoords | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [mapVisible, setMapVisible] = useState(false);
+  const [tempCoord, setTempCoord] = useState<{latitude: number, longitude: number} | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -24,22 +40,46 @@ export default function ReportScreen() {
       if (status !== 'granted') return;
       let loc = await Location.getCurrentPositionAsync({});
       setLocation(loc.coords);
+      setTempCoord({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      await ImagePicker.requestCameraPermissionsAsync();
     })();
   }, []);
 
-  const pickMedia = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Lỗi', 'Cần quyền thư viện!'); return; }
-    
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'], // [MỚI] Cho phép cả Video - FR-4.1.1
-      allowsEditing: true,
-      quality: 0.5,
-    });
-
+  const handleImageResult = (result: ImagePicker.ImagePickerResult) => {
     if (!result.canceled) {
         setMediaUri(result.assets[0].uri);
         setMediaType(result.assets[0].type === 'video' ? 'video' : 'image');
+    }
+  };
+
+  const openLibrary = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Lỗi', 'Cần quyền truy cập thư viện!'); return; }
+    let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], allowsEditing: false, quality: 0.5 });
+    handleImageResult(result);
+  };
+
+  const openCamera = async (mode: 'image' | 'video') => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Lỗi', 'Cần quyền truy cập Camera!'); return; }
+    let result = await ImagePicker.launchCameraAsync({ mediaTypes: mode === 'video' ? ['videos'] : ['images'], allowsEditing: false, quality: 0.5, videoMaxDuration: 60 });
+    handleImageResult(result);
+  };
+
+  const showMediaOptions = () => {
+      Alert.alert("Chọn bằng chứng", "", [
+              { text: "Hủy", style: "cancel" },
+              { text: "📸 Chụp ảnh", onPress: () => openCamera('image') },
+              { text: "🎥 Quay video", onPress: () => openCamera('video') },
+              { text: "🖼️ Thư viện", onPress: openLibrary },
+          ], { cancelable: true }
+      );
+  };
+
+  const confirmLocation = () => {
+    if (tempCoord) {
+        setLocation({ latitude: tempCoord.latitude, longitude: tempCoord.longitude, altitude: 0, accuracy: 0, altitudeAccuracy: 0, heading: 0, speed: 0 });
+        setMapVisible(false);
     }
   };
 
@@ -47,7 +87,7 @@ export default function ReportScreen() {
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
-      // Đặt đuôi file đúng loại
+
       const ext = mediaType === 'video' ? 'mp4' : 'jpg';
       const filename = `reports/${Date.now()}.${ext}`;
       const storageRef = ref(storage, filename);
@@ -57,73 +97,156 @@ export default function ReportScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!description || !mediaUri) { Alert.alert('Thiếu thông tin', 'Nhập mô tả và chọn ảnh/video.'); return; }
+    if (!description || !mediaUri) { Alert.alert('Thiếu thông tin', 'Vui lòng nhập mô tả và bằng chứng.'); return; }
     setUploading(true);
     try {
       const url = await uploadMedia(mediaUri);
       const currentUser = auth.currentUser;
 
       await addDoc(collection(db, "reports"), {
-        userId: currentUser?.uid || 'guest',
-        userEmail: currentUser?.email || 'Ẩn danh',
-        description: description,
-        mediaUrl: url, // Đổi tên trường
-        mediaType: mediaType, // Lưu loại file
-        location: location ? { lat: location.latitude, lng: location.longitude } : null,
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
 
-      if (currentUser && !currentUser.isAnonymous) {
-          const userRef = doc(db, "users", currentUser.uid);
-          await updateDoc(userRef, { score: increment(10) });
-          Alert.alert('Thành công', '+10 điểm thưởng! 🌿');
-      } else {
-          Alert.alert('Thành công', 'Báo cáo đã gửi!');
-      }
+        userId: currentUser?.uid || 'guest', userEmail: currentUser?.email || 'Ẩn danh', description: description, mediaUrl: url, mediaType: mediaType,
+        location: location ? { lat: location.latitude, lng: location.longitude } : null, status: 'pending', createdAt: serverTimestamp()
+      });
+      if (currentUser && !currentUser.isAnonymous) { await addPoints(10, "gửi báo cáo"); } 
+      else { Alert.alert('Thành công', 'Báo cáo đã gửi!'); }
       router.back();
     } catch (error: any) { Alert.alert('Lỗi', error.message); } finally { setUploading(false); }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex:1}}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text variant="headlineSmall" style={styles.header}>Báo cáo vi phạm</Text>
-        <Text style={styles.subHeader}>Chụp ảnh hoặc quay video hành vi vi phạm.</Text>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      
+      <Stack.Screen options={{ headerShown: false }} />
 
-        <Card style={styles.imageCard} onPress={pickMedia}>
-           {mediaUri ? (
-             // [MỚI] Logic hiển thị Video hoặc Ảnh
-             mediaType === 'video' ? (
-                <Video
-                    style={styles.imagePreview}
-                    source={{ uri: mediaUri }}
-                    useNativeControls
-                    resizeMode={ResizeMode.CONTAIN}
-                    isLooping
-                />
-             ) : (
-                <Image source={{ uri: mediaUri }} style={styles.imagePreview} />
-             )
-           ) : (
-             <View style={styles.placeholder}><Button icon="camera" mode="text">Chọn Ảnh/Video</Button></View>
-           )}
-        </Card>
-        
-        <Button mode="outlined" onPress={pickMedia} style={{marginBottom: 20}}>Đổi file khác</Button>
+      
+      <View style={styles.headerBar}>
+          <IconButton icon="arrow-left" onPress={() => router.back()} iconColor="#0E4626" size={28} style={{marginLeft: -10}} />
+          <Text style={styles.headerTitle}>Báo cáo vi phạm</Text>
+          <IconButton icon="alert-circle-outline" iconColor="#D32F2F" size={28} onPress={() => Alert.alert("Lưu ý", "Hãy cung cấp hình ảnh rõ nét để chúng tôi xử lý nhanh nhất.")} />
+      </View>
 
-        <TextInput label="Mô tả sự việc" value={description} onChangeText={setDescription} mode="outlined" multiline numberOfLines={4} style={styles.input} />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        <View style={styles.locationBox}>
-          <Text variant="bodySmall" style={{color: location ? '#2E7D32' : '#F44336'}}>
-             {location ? `✅ Vị trí: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` : '📍 Đang lấy vị trí...'}
-          </Text>
+        
+        <View style={styles.cardSection}>
+            <View style={styles.labelRow}>
+                <Avatar.Icon size={32} icon="camera" style={{backgroundColor: '#E8F5E9'}} color='#2E7D32' />
+                <Text style={styles.cardLabel}>Hình ảnh / Video</Text>
+            </View>
+            
+            <TouchableOpacity onPress={showMediaOptions} activeOpacity={0.9} style={[styles.mediaContainer, mediaUri ? styles.mediaContainerFilled : null]}>
+               {mediaUri ? (
+                    <>
+                        {mediaType === 'video' ? <VideoPreview uri={mediaUri} /> : <Image source={{ uri: mediaUri }} style={styles.previewImage} resizeMode="cover" />}
+                        <View style={styles.floatingEditBtn}>
+                            <Text style={styles.floatingEditText}>Thay đổi</Text>
+                        </View>
+                    </>
+               ) : (
+                 <View style={styles.uploadPlaceholder}>
+                    <View style={styles.uploadCircle}>
+                        <Avatar.Icon size={40} icon="cloud-upload" style={{backgroundColor: 'transparent'}} color='#2E7D32' />
+                    </View>
+                    <Text style={styles.uploadTextMain}>Nhấn để tải lên</Text>
+                    <Text style={styles.uploadTextSub}>Hỗ trợ Ảnh hoặc Video</Text>
+                 </View>
+               )}
+            </TouchableOpacity>
         </View>
 
-        <Button mode="contained" onPress={handleSubmit} loading={uploading} disabled={uploading} style={styles.submitBtn} contentStyle={{height: 50}}>
-          {uploading ? 'Đang gửi...' : 'GỬI BÁO CÁO'}
-        </Button>
+        
+        <View style={styles.cardSection}>
+            <View style={styles.labelRow}>
+                <Avatar.Icon size={32} icon="map-marker" style={{backgroundColor: '#E0F2F1'}} color='#00695C' />
+                <Text style={[styles.cardLabel, {color: '#00695C'}]}>Vị trí sự việc</Text>
+            </View>
+            
+            
+            <View style={styles.miniMapContainer}>
+                <MapView 
+                    provider={PROVIDER_GOOGLE}
+                    style={styles.miniMap}
+                    region={{
+                        latitude: location?.latitude || 10.7769,
+                        longitude: location?.longitude || 106.7009,
+                        latitudeDelta: 0.005,
+                        longitudeDelta: 0.005,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                >
+                    {location && <Marker coordinate={{latitude: location.latitude, longitude: location.longitude}} />}
+                </MapView>
+            </View>
+
+            <View style={styles.locationTextContainer}>
+                <Text style={styles.locationAddress}>
+                    {location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : "Đang lấy toạ độ..."}
+                </Text>
+                <Button mode="contained" onPress={() => setMapVisible(true)} compact style={styles.changeLocBtn} labelStyle={{fontSize: 12, color: '#00695C'}} contentStyle={{height: 32}}>
+                    Ghim trên bản đồ
+                </Button>
+            </View>
+        </View>
+
+        
+        <View style={styles.cardSection}>
+            <View style={styles.labelRow}>
+                <Avatar.Icon size={32} icon="pencil" style={{backgroundColor: '#FFF3E0'}} color='#EF6C00' />
+                <Text style={[styles.cardLabel, {color: '#EF6C00'}]}>Chi tiết</Text>
+            </View>
+            <TextInput 
+                placeholder="Mô tả chi tiết sự việc..."
+                value={description} 
+                onChangeText={setDescription} 
+                mode="flat" 
+                multiline 
+                style={styles.descInput} 
+                underlineColor="transparent"
+                activeUnderlineColor="transparent"
+                placeholderTextColor="#999"
+            />
+        </View>
+
+
       </ScrollView>
+
+      
+      <View style={styles.submitBtnContainer}>
+        <Button 
+            mode="contained" 
+            onPress={handleSubmit} 
+            loading={uploading} 
+            disabled={uploading} 
+            style={styles.submitBtn}
+            labelStyle={styles.submitBtnLabel}
+            icon={uploading ? undefined : "send"}
+        >
+          {uploading ? 'ĐANG GỬI...' : 'GỬI BÁO CÁO'}
+        </Button>
+      </View>
+
+      
+      <Portal>
+        <Modal visible={mapVisible} onDismiss={() => setMapVisible(false)} contentContainerStyle={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+                <IconButton icon="close" onPress={() => setMapVisible(false)} iconColor="#333" size={28} />
+                <Text style={styles.modalTitle}>Chọn vị trí</Text>
+                <View style={{width: 48}} /> 
+            </View>
+            <View style={styles.mapWrapper}>
+                <MapView provider={PROVIDER_GOOGLE} style={{flex: 1}} initialRegion={{ latitude: location?.latitude || 10.7769, longitude: location?.longitude || 106.7009, latitudeDelta: 0.005, longitudeDelta: 0.005 }} onPress={(e: any) => setTempCoord(e.nativeEvent.coordinate)}>
+                    {tempCoord && <Marker coordinate={tempCoord} />}
+                </MapView>
+                <View style={styles.confirmLocBtnContainer}>
+                     <Button mode="contained" onPress={confirmLocation} style={styles.confirmLocBtn} labelStyle={{fontWeight: 'bold', fontSize: 16}}>
+                        Xác nhận vị trí này
+                     </Button>
+                </View>
+            </View>
+        </Modal>
+      </Portal>
     </KeyboardAvoidingView>
   );
 }
