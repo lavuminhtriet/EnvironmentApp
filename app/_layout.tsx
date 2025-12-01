@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { PaperProvider } from 'react-native-paper'; // <-- QUAN TRỌNG 1: Phải có dòng này
+import { PaperProvider } from 'react-native-paper'; 
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -10,7 +10,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    // <-- QUAN TRỌNG 2: PaperProvider phải bọc ngoài cùng (hoặc bọc ThemeProvider)
+    
     <PaperProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>

@@ -1,17 +1,53 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, Image, Alert, RefreshControl } from 'react-native';
-import { Text, Card, Chip, ActivityIndicator } from 'react-native-paper';
+import { Text, Card, Chip, ActivityIndicator, IconButton, Button, Avatar } from 'react-native-paper';
 import { db, auth } from '../firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { styles } from '../styles/history.styles';
 
 interface Report {
   id: string;
   description: string;
-  imageUrl: string;
-  status: string;
+  mediaUrl: string;
+  mediaType: 'image' | 'video';
+  status: 'pending' | 'processing' | 'resolved';
   createdAt: any;
 }
+
+
+const VideoItem = ({ uri }: { uri: string }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.muted = true; 
+    player.loop = true;
+  });
+
+  return (
+    <View style={styles.mediaBox}>
+      <VideoView 
+        style={styles.media} 
+        player={player} 
+        contentFit="cover" 
+        nativeControls={false} 
+      />
+      <View style={styles.videoBadge}>
+          <Avatar.Icon size={16} icon="play" style={{backgroundColor:'transparent'}} color='#fff' />
+      </View>
+    </View>
+  );
+};
+
+const MediaThumbnail = ({ uri, type }: { uri: string, type: 'image' | 'video' }) => {
+  if (type === 'video') {
+    return <VideoItem uri={uri} />;
+  }
+  return (
+    <View style={styles.mediaBox}>
+        <Image source={{ uri: uri }} style={styles.media} resizeMode="cover" />
+    </View>
+  );
+};
 
 export default function HistoryScreen() {
   const [reports, setReports] = useState<Report[]>([]);
@@ -37,16 +73,24 @@ export default function HistoryScreen() {
       const querySnapshot = await getDocs(q);
       const list: Report[] = [];
       querySnapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() } as Report);
+        const data = doc.data();
+        list.push({ 
+            id: doc.id, 
+            description: data.description,
+            mediaUrl: data.mediaUrl,   
+            mediaType: data.mediaType || 'image', 
+            status: data.status,
+            createdAt: data.createdAt
+        } as Report);
       });
 
-      // Sắp xếp mới nhất lên đầu
+      
       list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
       setReports(list);
     } catch (error: any) {
       console.error(error);
-      Alert.alert('Lỗi', 'Không thể tải lịch sử báo cáo.');
+
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -57,65 +101,72 @@ export default function HistoryScreen() {
     fetchReports();
   }, []);
 
-  const getStatusColor = (status: string) => {
+  
+  const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'resolved': return '#4CAF50';
-      case 'processing': return '#2196F3';
-      default: return '#FFC107';
+      case 'resolved': 
+        return { bg: '#E8F5E9', text: '#2E7D32', label: 'Đã xử lý' }; 
+      case 'processing': 
+        return { bg: '#E3F2FD', text: '#1565C0', label: 'Đang xử lý' }; 
+      default: 
+        return { bg: '#FFF3E0', text: '#EF6C00', label: 'Đã tiếp nhận' }; 
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'resolved': return 'Đã xử lý';
-      case 'processing': return 'Đang xử lý';
-      default: return 'Đã tiếp nhận';
-    }
-  };
+  const renderItem = ({ item }: { item: Report }) => {
+    const statusStyle = getStatusStyle(item.status);
 
-  const renderItem = ({ item }: { item: Report }) => (
-    <Card style={styles.card}>
-      <Card.Content style={styles.cardContent}>
-        <Image source={{ uri: item.imageUrl }} style={styles.image} />
-        <View style={styles.info}>
-          <View style={styles.headerRow}>
-            <Chip 
-              style={{ backgroundColor: getStatusColor(item.status), height: 30 }} 
-              textStyle={{ color: '#fff', fontSize: 12 }}
-            >
-              {getStatusText(item.status)}
-            </Chip>
-            <Text variant="bodySmall" style={{ color: '#888' }}>
-              {item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : '...'}
-            </Text>
+    return (
+      <View style={styles.card}>
+        <MediaThumbnail uri={item.mediaUrl} type={item.mediaType} />
+
+        <View style={styles.infoBox}>
+          <View style={styles.cardHeaderRow}>
+             
+             <View style={[styles.statusBadge, {backgroundColor: statusStyle.bg}]}>
+                 <Text style={[styles.statusText, {color: statusStyle.text}]}>{statusStyle.label}</Text>
+             </View>
+             <Text style={styles.dateText}>
+               {item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : '...'}
+             </Text>
           </View>
-          <Text variant="bodyMedium" numberOfLines={2} style={styles.desc}>
-            {item.description}
+          
+          <Text numberOfLines={2} style={styles.descText}>
+            {item.description || "Không có mô tả"}
           </Text>
         </View>
-      </Card.Content>
-    </Card>
-  );
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <Text variant="headlineSmall" style={styles.header}>Lịch sử gửi báo cáo</Text>
+      <Stack.Screen options={{ headerShown: false }} />
       
+      
+      <View style={styles.headerBar}>
+          <IconButton icon="arrow-left" onPress={() => router.back()} iconColor="#0E4626" size={26} style={styles.backBtn} />
+          <Text style={styles.headerTitle}>Lịch Sử Báo Cáo</Text>
+          <View style={{width: 40}} />
+      </View>
+
       {loading ? (
-        <ActivityIndicator size="large" color="#2E7D32" style={{ marginTop: 50 }} />
-      ) : reports.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={{ marginBottom: 10 }}>Bạn chưa gửi báo cáo nào.</Text>
-          <Chip icon="plus" onPress={() => router.push('/report' as any)}>Gửi báo cáo ngay</Chip>
-        </View>
+        <ActivityIndicator size="large" color="#0E4626" style={{ marginTop: 50 }} />
       ) : (
         <FlatList
           data={reports}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReports(); }} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+               <Avatar.Icon size={80} icon="file-document-outline" style={{backgroundColor: '#E8F5E9'}} color='#2E7D32' />
+               <Text style={styles.emptyText}>Bạn chưa gửi báo cáo nào.{"\n"}Hãy chung tay bảo vệ môi trường nhé!</Text>
+               <Button mode="contained" onPress={() => router.push('/report' as any)} style={styles.createBtn} labelStyle={{fontWeight:'bold', fontSize: 16}}>Gửi báo cáo ngay</Button>
+            </View>
           }
         />
       )}
@@ -123,14 +174,3 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5', padding: 20 },
-  header: { fontWeight: 'bold', color: '#2E7D32', marginBottom: 20, textAlign: 'center' },
-  card: { marginBottom: 15, backgroundColor: '#fff', borderRadius: 12 },
-  cardContent: { flexDirection: 'row', padding: 10 },
-  image: { width: 80, height: 80, borderRadius: 8, marginRight: 15, backgroundColor: '#eee' },
-  info: { flex: 1, justifyContent: 'center' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  desc: { fontWeight: '500', color: '#333' },
-  emptyState: { alignItems: 'center', marginTop: 100 }
-});

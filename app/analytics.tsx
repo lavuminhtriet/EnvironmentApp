@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
-import { Text, Card, Button, DataTable, Appbar, ActivityIndicator } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { View, ScrollView, Alert, RefreshControl, TouchableOpacity } from 'react-native';
+import { Text, Button, ActivityIndicator, IconButton, Avatar } from 'react-native-paper';
+import { useRouter, Stack } from 'expo-router';
 import { auth, db } from '../firebaseConfig';
-import { doc, getDoc, collection, query, where, getCountFromServer } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getCountFromServer, getDocs } from 'firebase/firestore';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { styles } from '../styles/analytics.styles';
@@ -13,43 +13,58 @@ export default function AnalyticsScreen() {
   const user = auth.currentUser;
   
   const [stats, setStats] = useState({
-    reportsCount: 0,
-    score: 0,
-    wasteCount: 0,
-    globalCount: 0 
+    userReports: 0,
+    userScore: 0,
+    communityReports: 0, 
+    recycledWaste: 0,    
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      let score = 0;
+      let myReports = 0;
+
+      if (user) {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          score = userDoc.exists() ? userDoc.data().score || 0 : 0;
+          
+          const qReports = query(collection(db, "reports"), where("userId", "==", user.uid));
+          const snapshotReports = await getCountFromServer(qReports);
+          myReports = snapshotReports.data().count;
+      }
+
+      const qGlobalReports = query(collection(db, "reports"));
+      const snapshotGlobal = await getCountFromServer(qGlobalReports);
+      const totalReports = snapshotGlobal.data().count;
+
+      const usersCol = collection(db, "users");
+      const userSnapshot = await getDocs(usersCol);
+      let totalScoreSystem = 0;
+      userSnapshot.forEach(doc => {
+          totalScoreSystem += (doc.data().score || 0);
+      });
+      
+      const estimatedWaste = Math.round(totalScoreSystem / 10); 
+
+      setStats({
+          userReports: myReports,
+          userScore: score,
+          communityReports: totalReports,
+          recycledWaste: estimatedWaste 
+      });
+
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        let score = 0;
-        let userReports = 0;
-
-        if (user) {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            score = userDoc.exists() ? userDoc.data().score || 0 : 0;
-            const qReports = query(collection(db, "reports"), where("userId", "==", user.uid));
-            const snapshotReports = await getCountFromServer(qReports);
-            userReports = snapshotReports.data().count;
-        }
-
-        const qGlobal = query(collection(db, "reports"));
-        const snapshotGlobal = await getCountFromServer(qGlobal);
-        
-        setStats({
-            reportsCount: userReports,
-            score: score,
-            wasteCount: Math.floor(score / 5),
-            globalCount: snapshotGlobal.data().count
-        });
-
-      } catch {
-        // Bỏ qua lỗi log để tránh warning
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStats();
   }, [user]);
 
@@ -63,33 +78,53 @@ export default function AnalyticsScreen() {
       <html>
         <head>
           <style>
-            body { font-family: 'Helvetica'; padding: 20px; }
-            h1 { color: #2E7D32; text-align: center; }
-            .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
-            .highlight { color: #1565C0; font-weight: bold; font-size: 20px; }
+            body { font-family: 'Helvetica', sans-serif; padding: 40px; background-color: #f9f9f9; }
+            .header { text-align: center; margin-bottom: 30px; }
+            h1 { color: #0E4626; margin-bottom: 5px; }
+            .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .label { font-weight: bold; color: #555; font-size: 14px; }
+            .value { font-size: 28px; color: #000; font-weight: bold; margin-top: 5px; }
+            .highlight { color: #0E4626; }
+            .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #888; }
           </style>
         </head>
         <body>
-          <h1>BÁO CÁO HOẠT ĐỘNG MÔI TRƯỜNG</h1>
-          <p><strong>Người dùng:</strong> ${user.email}</p>
-          <p><strong>Ngày xuất:</strong> ${new Date().toLocaleDateString('vi-VN')}</p>
-          <hr />
+          <div class="header">
+            <h1>BÁO CÁO TÁC ĐỘNG MÔI TRƯỜNG</h1>
+            <p>Người dùng: ${user.email} | Ngày: ${new Date().toLocaleDateString('vi-VN')}</p>
+          </div>
           
           <div class="card">
-            <h3>Tổng quan cá nhân</h3>
-            <p>Số báo cáo đã gửi: <span class="highlight">${stats.reportsCount}</span></p>
-            <p>Điểm thưởng hiện tại: <span class="highlight">${stats.score}</span></p>
-            <p>Số lần phân loại rác (ước tính): <span class="highlight">${stats.wasteCount}</span></p>
+            <h3 style="color: #0E4626; border-bottom: 1px solid #eee; padding-bottom: 10px;">👤 Thống Kê Cá Nhân</h3>
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <div class="label">Số báo cáo đã gửi</div>
+                    <div class="value">${stats.userReports}</div>
+                </div>
+                <div>
+                    <div class="label">Điểm thưởng tích lũy</div>
+                    <div class="value highlight">${stats.userScore}</div>
+                </div>
+            </div>
           </div>
 
-          <div class="card">
-            <h3>Đóng góp cộng đồng</h3>
-            <p>Tổng số báo cáo toàn hệ thống: <strong>${stats.globalCount}</strong></p>
+          <div class="card" style="background-color: #E8F5E9;">
+            <h3 style="color: #0E4626; border-bottom: 1px solid #ccc; padding-bottom: 10px;">🌍 Dashboard Cộng Đồng</h3>
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <div class="label">Tổng báo cáo hệ thống</div>
+                    <div class="value">${stats.communityReports}</div>
+                </div>
+                <div>
+                    <div class="label">Rác tái chế (Ước tính)</div>
+                    <div class="value" style="color: #1565C0;">${stats.recycledWaste} kg</div>
+                </div>
+            </div>
           </div>
 
-          <p style="text-align: center; margin-top: 50px; color: #666;">
-            Cảm ơn bạn đã chung tay bảo vệ môi trường xanh! 🌿
-          </p>
+          <div class="footer">
+            Environment App - Chung tay vì một hành tinh xanh 🌿
+          </div>
         </body>
       </html>
     `;
@@ -102,64 +137,82 @@ export default function AnalyticsScreen() {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2E7D32"/></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0E4626"/></View>;
 
   return (
     <View style={styles.container}>
-      <Appbar.Header style={{backgroundColor: '#fff', elevation: 4}}>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Thống Kê & Báo Cáo" />
-      </Appbar.Header>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text variant="titleMedium" style={{marginBottom: 15, textAlign: 'center', color: '#666'}}>Tổng quan hoạt động</Text>
+      <View style={styles.headerBar}>
+        <IconButton icon="arrow-left" onPress={() => router.back()} iconColor="#0E4626" size={26} style={styles.backBtn} />
+        <Text style={styles.headerTitle}>Thống Kê</Text>
+        <View style={{width: 40}} />
+      </View>
 
-        <Card style={[styles.statCard, {backgroundColor: '#FFF3E0', width: '100%', marginBottom: 15}]}>
-            <Card.Content style={{alignItems: 'center'}}>
-                <Text variant="titleMedium">Cộng đồng chung tay</Text>
-                <Text variant="displayMedium" style={{color: '#E65100', fontWeight: 'bold'}}>{stats.globalCount}</Text>
-                <Text variant="bodySmall">Tổng số báo cáo vi phạm toàn hệ thống</Text>
-            </Card.Content>
-        </Card>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} />}
+        showsVerticalScrollIndicator={false}
+      >
+        
+        <Text style={styles.sectionTitle}>Tác động từ cộng đồng</Text>
 
-        <View style={styles.grid}>
-            <Card style={[styles.statCard, {backgroundColor: '#E8F5E9', width: '48%'}]}>
-                <Card.Content style={{alignItems: 'center'}}>
-                    <Text variant="displaySmall" style={{color: '#2E7D32', fontWeight: 'bold'}}>{stats.reportsCount}</Text>
-                    <Text variant="bodyMedium">Báo cáo của bạn</Text>
-                </Card.Content>
-            </Card>
+        <TouchableOpacity activeOpacity={0.9} style={styles.dashboardCard} onPress={() => router.push('/community' as any)}>
+            <View style={styles.dashboardHeader}>
+                <Avatar.Icon size={36} icon="earth" style={{backgroundColor: 'rgba(255,255,255,0.2)'}} color='#fff' />
+                <Text style={styles.dashboardTitle}>MỌI NGƯỜI ĐÃ BÁO CÁO</Text>
+            </View>
+            
+            <View style={styles.dashboardRow}>
+                <View style={styles.dashboardItem}>
+                    <Text style={styles.dashboardValue}>{stats.communityReports}</Text>
+                    <Text style={styles.dashboardLabel}>Báo cáo vi phạm</Text>
+                </View>
+                
+                <View style={styles.dividerVertical} />
+                
+                <View style={styles.dashboardItem}>
+                    <Text style={styles.dashboardValue}>{stats.recycledWaste}</Text>
+                    <Text style={styles.dashboardLabel}>Kg rác tái chế</Text>
+                </View>
+            </View>
+        </TouchableOpacity>
 
-            <Card style={[styles.statCard, {backgroundColor: '#E3F2FD', width: '48%'}]}>
-                <Card.Content style={{alignItems: 'center'}}>
-                    <Text variant="displaySmall" style={{color: '#1565C0', fontWeight: 'bold'}}>{stats.score}</Text>
-                    <Text variant="bodyMedium">Điểm thưởng</Text>
-                </Card.Content>
-            </Card>
+        <Text style={styles.sectionTitle}>Hoạt động của bạn</Text>
+
+        <View style={styles.gridContainer}>
+            <TouchableOpacity activeOpacity={0.8} style={styles.statCard} onPress={() => router.push('/history' as any)}>
+                <View style={[styles.iconBox, {backgroundColor: '#E3F2FD'}]}>
+                    <Avatar.Icon size={30} icon="file-document-edit-outline" style={{backgroundColor:'transparent'}} color='#1565C0' />
+                </View>
+                <Text style={styles.statCardValue}>{stats.userReports}</Text>
+                <Text style={styles.statCardLabel}>Báo cáo đã gửi</Text>
+                <Text style={styles.actionText}>Xem lịch sử →</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity activeOpacity={0.8} style={styles.statCard} onPress={() => router.push('/rewards' as any)}>
+                <View style={[styles.iconBox, {backgroundColor: '#FFF3E0'}]}>
+                    <Avatar.Icon size={30} icon="trophy-outline" style={{backgroundColor:'transparent'}} color='#E65100' />
+                </View>
+                <Text style={[styles.statCardValue, {color: '#E65100'}]}>{stats.userScore}</Text>
+                <Text style={styles.statCardLabel}>Điểm thưởng</Text>
+                <Text style={styles.actionText}>Đổi quà ngay →</Text>
+            </TouchableOpacity>
         </View>
 
-        <Card style={styles.tableCard}>
-            <Card.Title title="Chi tiết đóng góp" />
-            <DataTable>
-                <DataTable.Header>
-                <DataTable.Title>Hoạt động</DataTable.Title>
-                <DataTable.Title numeric>Số lượng</DataTable.Title>
-                <DataTable.Title numeric>Điểm nhận</DataTable.Title>
-                </DataTable.Header>
-                <DataTable.Row>
-                <DataTable.Cell>Gửi báo cáo</DataTable.Cell>
-                <DataTable.Cell numeric>{stats.reportsCount}</DataTable.Cell>
-                <DataTable.Cell numeric>{stats.reportsCount * 10}</DataTable.Cell>
-                </DataTable.Row>
-                <DataTable.Row>
-                <DataTable.Cell>Phân loại rác</DataTable.Cell>
-                <DataTable.Cell numeric>{stats.wasteCount}</DataTable.Cell>
-                <DataTable.Cell numeric>{stats.wasteCount * 5}</DataTable.Cell>
-                </DataTable.Row>
-            </DataTable>
-        </Card>
+        <Button 
+            mode="contained" 
+            icon="file-pdf-box" 
+            style={styles.exportBtn} 
+            onPress={handleExportPDF}
+            labelStyle={{fontSize: 16, fontWeight: 'bold'}}
+        >
+            XUẤT BÁO CÁO PDF
+        </Button>
 
-        <Button mode="contained" icon="file-pdf-box" style={styles.exportBtn} onPress={handleExportPDF}>Xuất Báo Cáo PDF</Button>
+        <Text style={styles.disclaimer}>
+            *Dữ liệu tái chế được ước tính dựa trên hoạt động chung.
+        </Text>
       </ScrollView>
     </View>
   );

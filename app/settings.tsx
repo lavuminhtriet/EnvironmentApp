@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, List, Switch, Divider, Button, Appbar, ActivityIndicator } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { View, ScrollView, Alert, TouchableOpacity, Switch } from 'react-native';
+import { Text, Button, ActivityIndicator, IconButton, Avatar } from 'react-native-paper';
+import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+
+import { styles } from '../styles/settings.styles';
+
 export default function SettingsScreen() {
   const router = useRouter();
   
@@ -44,95 +47,153 @@ export default function SettingsScreen() {
     }
   };
 
-
+  
 
   const scheduleGarbageReminder = async () => {
-    try {
-        await Notifications.scheduleNotificationAsync({
-            content: {
-                title: "🚛 Nhắc nhở đổ rác",
-                body: "Đã đến giờ thu gom rác tái chế! Hãy mang rác ra đúng nơi quy định.",
-                sound: 'default',
-            },
-            // [FIX LỖI ĐỎ] Sử dụng 'as const' để ép kiểu cho TypeScript
-            trigger: { 
-                type: 'timeInterval' as const, // Thêm 'as const'
-                seconds: 5, 
-                repeats: false 
-            }, 
-        });
-        Alert.alert("Thành công", "Đã đặt lịch nhắc! Bạn sẽ nhận thông báo sau 5 giây (Demo).");
-    } catch {
-        Alert.alert("Lỗi", "Không thể đặt lịch thông báo.");
-    }
-};
+      try {
+          await Notifications.scheduleNotificationAsync({
+              content: {
+                  title: "🚛 Nhắc nhở đổ rác",
+                  body: "Đã đến giờ thu gom rác tái chế! Hãy mang rác ra đúng nơi quy định.",
+                  sound: 'default',
+              },
+              trigger: { 
+                  type: 'timeInterval', 
+                  seconds: 5, 
+                  repeats: false 
+              } as any, 
+          });
+          Alert.alert("Thành công", "Đã đặt lịch nhắc! Bạn sẽ nhận thông báo sau 5 giây (Demo).");
+      } catch {
+          Alert.alert("Lỗi", "Không thể đặt lịch thông báo.");
+      }
+  };
 
-
-
-
-
-
-
-
-  if (loading) return <ActivityIndicator style={{marginTop: 50}} color="#2E7D32" />;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0E4626" /></View>;
 
   return (
     <View style={styles.container}>
-      <Appbar.Header style={{backgroundColor: '#fff', elevation: 4}}>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Cài đặt & Thông báo" />
-      </Appbar.Header>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      
+      <View style={styles.headerBar}>
+        <IconButton icon="arrow-left" onPress={() => router.back()} iconColor="#0E4626" size={26} style={styles.backBtn} />
+        <Text style={styles.headerTitle}>Cài Đặt</Text>
+        <View style={{width: 40}} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        <List.Section>
-          <List.Subheader>Thông báo chung</List.Subheader>
-          <List.Item
-            title="Nhận thông báo đẩy"
-            description="Tin tức, sự kiện môi trường"
-            right={() => <Switch value={pushEnabled} onValueChange={setPushEnabled} color="#2E7D32" />}
-          />
-          <List.Item
-            title="Mẹo sống xanh mỗi ngày"
-            description="Nhận lời khuyên vào 8:00 sáng"
-            right={() => <Switch value={dailyTip} onValueChange={setDailyTip} color="#2E7D32" />}
-          />
-          
-          <List.Item
-            title="Đặt nhắc nhở đổ rác"
-            description="Demo: Nhắc sau 5 giây"
-            left={() => <List.Icon icon="delete-clock" color="#F57C00"/>}
-            onPress={scheduleGarbageReminder}
-          />
-        </List.Section>
-
-        <Divider />
-
-        <List.Section>
-          <List.Subheader>Cảnh báo chất lượng không khí</List.Subheader>
-          <List.Item
-            title="Cảnh báo AQI nguy hại"
-            description="Khi chỉ số vượt ngưỡng an toàn"
-            right={() => <Switch value={aqiAlert} onValueChange={setAqiAlert} color="#D32F2F" />}
-          />
-          
-          {aqiAlert && (
-            <View style={styles.thresholdBox}>
-              <Text style={{marginBottom: 10}}>Ngưỡng cảnh báo AQI: {aqiThreshold}</Text>
-              <View style={styles.thresholdButtons}>
-                <Button mode={aqiThreshold === 50 ? 'contained' : 'outlined'} onPress={() => setAqiThreshold(50)} compact>50 (Tốt)</Button>
-                <Button mode={aqiThreshold === 100 ? 'contained' : 'outlined'} onPress={() => setAqiThreshold(100)} compact>100 (TB)</Button>
-                <Button mode={aqiThreshold === 150 ? 'contained' : 'outlined'} onPress={() => setAqiThreshold(150)} compact>150 (Kém)</Button>
-              </View>
-              <Text style={styles.note}>*Chỉ nhận thông báo khi AQI cao hơn mức này.</Text>
+        
+        <Text style={styles.sectionHeader}>Thông báo & Tiện ích</Text>
+        <View style={styles.settingsCard}>
+            
+            
+            <View style={styles.settingRow}>
+                <View style={styles.itemLeft}>
+                    <View style={[styles.iconBox, {backgroundColor: '#E3F2FD'}]}>
+                        <Avatar.Icon size={24} icon="bell-ring" style={{backgroundColor:'transparent'}} color='#1565C0' />
+                    </View>
+                    <View>
+                        <Text style={styles.itemTitle}>Thông báo đẩy</Text>
+                        <Text style={styles.itemDesc}>Tin tức, sự kiện môi trường</Text>
+                    </View>
+                </View>
+                <Switch value={pushEnabled} onValueChange={setPushEnabled} trackColor={{false: '#E0E0E0', true: '#A5D6A7'}} thumbColor={pushEnabled ? '#2E7D32' : '#f4f3f4'} />
             </View>
-          )}
-        </List.Section>
 
-        <Divider />
+            
+            <View style={styles.settingRow}>
+                <View style={styles.itemLeft}>
+                    <View style={[styles.iconBox, {backgroundColor: '#FFF3E0'}]}>
+                        <Avatar.Icon size={24} icon="lightbulb-on" style={{backgroundColor:'transparent'}} color='#EF6C00' />
+                    </View>
+                    <View>
+                        <Text style={styles.itemTitle}>Mẹo sống xanh</Text>
+                        <Text style={styles.itemDesc}>Nhận lời khuyên mỗi sáng</Text>
+                    </View>
+                </View>
+                <Switch value={dailyTip} onValueChange={setDailyTip} trackColor={{false: '#E0E0E0', true: '#A5D6A7'}} thumbColor={dailyTip ? '#2E7D32' : '#f4f3f4'} />
+            </View>
 
-        <Button mode="contained" onPress={handleSave} style={styles.saveBtn}>
-          Lưu Cài Đặt
+            
+            <TouchableOpacity style={[styles.settingRow, styles.lastRow]} onPress={scheduleGarbageReminder}>
+                <View style={styles.itemLeft}>
+                    <View style={[styles.iconBox, {backgroundColor: '#F3E5F5'}]}>
+                        <Avatar.Icon size={24} icon="truck" style={{backgroundColor:'transparent'}} color='#7B1FA2' />
+                    </View>
+                    <View>
+                        <Text style={styles.itemTitle}>Đặt lịch đổ rác</Text>
+                        <Text style={styles.itemDesc}>Demo: Nhắc sau 5 giây</Text>
+                    </View>
+                </View>
+                <IconButton icon="chevron-right" size={24} iconColor="#ccc" style={{margin:0}} />
+            </TouchableOpacity>
+        </View>
+
+        
+        <Text style={styles.sectionHeader}>Cảnh báo môi trường</Text>
+        <View style={styles.settingsCard}>
+            
+            <View style={[styles.settingRow, !aqiAlert && styles.lastRow]}>
+                <View style={styles.itemLeft}>
+                    <View style={[styles.iconBox, {backgroundColor: '#FFEBEE'}]}>
+                        <Avatar.Icon size={24} icon="alert-octagon" style={{backgroundColor:'transparent'}} color='#D32F2F' />
+                    </View>
+                    <View>
+                        <Text style={styles.itemTitle}>Cảnh báo AQI nguy hại</Text>
+                        <Text style={styles.itemDesc}>Khi không khí ô nhiễm nặng</Text>
+                    </View>
+                </View>
+                <Switch value={aqiAlert} onValueChange={setAqiAlert} trackColor={{false: '#E0E0E0', true: '#EF9A9A'}} thumbColor={aqiAlert ? '#C62828' : '#f4f3f4'} />
+            </View>
+
+            
+            {aqiAlert && (
+                <View style={styles.thresholdContainer}>
+                    <Text style={styles.thresholdLabel}>Ngưỡng thông báo (AQI): {aqiThreshold}</Text>
+                    <View style={styles.thresholdRow}>
+                        <Button 
+                            mode="outlined" 
+                            onPress={() => setAqiThreshold(50)} 
+                            style={[styles.thresholdBtn, aqiThreshold === 50 && styles.thresholdBtnActive]}
+                            labelStyle={{color: aqiThreshold === 50 ? '#0E4626' : '#666', fontWeight:'bold'}}
+                            compact
+                        >
+                            50 (Tốt)
+                        </Button>
+                        <Button 
+                            mode="outlined" 
+                            onPress={() => setAqiThreshold(100)} 
+                            style={[styles.thresholdBtn, aqiThreshold === 100 && styles.thresholdBtnActive]}
+                            labelStyle={{color: aqiThreshold === 100 ? '#0E4626' : '#666', fontWeight:'bold'}}
+                            compact
+                        >
+                            100 (TB)
+                        </Button>
+                        <Button 
+                            mode="outlined" 
+                            onPress={() => setAqiThreshold(150)} 
+                            style={[styles.thresholdBtn, aqiThreshold === 150 && styles.thresholdBtnActive]}
+                            labelStyle={{color: aqiThreshold === 150 ? '#3cba1aff' : '#666', fontWeight:'bold'}}
+                            compact
+                        >
+                            150 (Kém)
+                        </Button>
+                    </View>
+                    <Text style={styles.note}>*Hệ thống sẽ gửi thông báo khi chỉ số vượt quá mức này.</Text>
+                </View>
+            )}
+        </View>
+
+        <Button 
+            mode="contained" 
+            onPress={handleSave} 
+            style={styles.saveBtn}
+            labelStyle={styles.saveBtnLabel}
+            icon="check"
+        >
+          LƯU CÀI ĐẶT
         </Button>
 
       </ScrollView>
@@ -140,11 +201,3 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  content: { paddingBottom: 20 },
-  thresholdBox: { padding: 15, backgroundColor: '#fff', marginHorizontal: 15, borderRadius: 8, marginBottom: 10 },
-  thresholdButtons: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
-  note: { fontSize: 12, color: '#888', fontStyle: 'italic' },
-  saveBtn: { margin: 20, backgroundColor: '#2E7D32' }
-});

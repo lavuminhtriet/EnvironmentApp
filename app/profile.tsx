@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Alert, Image, TouchableOpacity } from 'react-native';
-import { TextInput, Button, Text, Avatar, ActivityIndicator, Divider, List, Chip } from 'react-native-paper';
+import { View, ScrollView, Alert, Image, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { TextInput, Button, Text, Avatar, ActivityIndicator, List, IconButton } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { auth, db, storage } from '../firebaseConfig';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -19,7 +19,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Kiểm tra xem Avatar là URI local mới hay đã là URL Firebase
+
   const isNewAvatarSelected = avatar && !avatar.startsWith('http');
 
   useEffect(() => {
@@ -55,9 +55,7 @@ export default function ProfileScreen() {
     setSaving(true);
     try {
       let photoURL = avatar;
-      
-      // [QUAN TRỌNG] Chỉ upload nếu ảnh là URI mới (chưa có http)
-      if (isNewAvatarSelected) { 
+      if (isNewAvatarSelected && avatar) { 
         const response = await fetch(avatar);
         const blob = await response.blob();
         const filename = `avatars/${user.uid}.jpg`;
@@ -65,13 +63,12 @@ export default function ProfileScreen() {
         await uploadBytes(storageRef, blob);
         photoURL = await getDownloadURL(storageRef);
       }
-      
-      // Lưu tất cả (bao gồm photoURL mới hoặc cũ) vào Firestore
+
+
       await setDoc(doc(db, "users", user.uid), { displayName: name, phoneNumber: phone, address: address, photoURL: photoURL, email: user.email }, { merge: true });
       Alert.alert('Thành công', 'Hồ sơ đã được cập nhật!');
     } catch (error) { 
-      console.error("Lỗi lưu hồ sơ:", error); 
-      Alert.alert('Lỗi', 'Không thể lưu hồ sơ. Vui lòng kiểm tra lại'); 
+      Alert.alert('Lỗi', 'Không thể lưu hồ sơ.'); 
     } finally { setSaving(false); }
   };
 
@@ -86,45 +83,131 @@ export default function ProfileScreen() {
               setLoading(true);
               await deleteDoc(doc(db, "users", user.uid));
               await deleteUser(user);
-              Alert.alert("Đã xóa", "Tài khoản đã bị xóa vĩnh viễn.");
+              Alert.alert("Đã xóa", "Tài khoản đã bị xóa.");
               router.replace('/');
-            } catch { Alert.alert("Lỗi", "Vui lòng đăng nhập lại trước khi thực hiện thao tác này."); } finally { setLoading(false); }
+            } catch { Alert.alert("Lỗi", "Vui lòng đăng nhập lại trước khi xóa."); } finally { setLoading(false); }
           }}
       ]);
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2E7D32"/></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0E4626"/></View>;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={pickImage}>
-          {avatar ? ( <Image source={{ uri: avatar }} style={styles.avatar} /> ) : ( <Avatar.Icon size={100} icon="account" style={{backgroundColor: '#e0e0e0'}} /> )}
-          <View style={styles.editBadge}><Text style={{color: '#fff', fontSize: 10}}>Sửa</Text></View>
-        </TouchableOpacity>
-        
-        <Text variant="headlineSmall" style={{marginTop: 10, fontWeight: 'bold'}}>{user?.email}</Text>
-        
-        {/* Hiển thị chip cảnh báo khi ảnh mới đã chọn nhưng chưa lưu */}
-        {isNewAvatarSelected && (
-            <Chip icon="content-save" style={{marginTop: 5}} textStyle={{fontWeight: 'bold'}} onPress={handleSave}>
-                Nhấn "Lưu thay đổi" để áp dụng ảnh mới!
-            </Chip>
-        )}
-      </View>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      
+      <IconButton icon="arrow-left" iconColor="#fff" size={24} style={styles.backBtn} onPress={() => router.back()} />
 
-      <View style={styles.form}>
-        <TextInput label="Họ và tên" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
-        <TextInput label="Số điện thoại" value={phone} onChangeText={setPhone} mode="outlined" keyboardType="phone-pad" style={styles.input} />
-        <TextInput label="Khu vực sống" value={address} onChangeText={setAddress} mode="outlined" style={styles.input} />
-        <Button mode="contained" onPress={handleSave} loading={saving} style={styles.saveBtn}>Lưu thay đổi</Button>
-      </View>
-      <Divider style={{marginVertical: 20}} />
-      <List.Section>
-        <List.Subheader>Cài đặt & Bảo mật</List.Subheader>
-        <List.Item title="Đăng xuất" left={() => <List.Icon icon="logout" color="#F44336" />} onPress={handleLogout} titleStyle={{color: '#F44336'}} />
-        <List.Item title="Xóa tài khoản" description="Hành động không thể hoàn tác" left={() => <List.Icon icon="delete-forever" color="#D32F2F" />} onPress={handleDeleteAccount} titleStyle={{color: '#D32F2F'}} />
-      </List.Section>
-    </ScrollView>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        
+        <View style={styles.headerBackground}>
+            <Text style={styles.headerTitle}>Hồ Sơ Cá Nhân</Text>
+        </View>
+
+        <View style={styles.mainContent}>
+            
+            <View style={styles.avatarContainer}>
+                <TouchableOpacity onPress={pickImage} activeOpacity={0.9}>
+                    <View style={styles.avatarWrapper}>
+                        {avatar ? ( <Image source={{ uri: avatar }} style={styles.avatarImage} resizeMode="cover" /> ) : ( <Avatar.Icon size={110} icon="account" style={{backgroundColor: '#E0E0E0'}} color='#fff' /> )}
+                    </View>
+                    <View style={styles.editBadge}>
+                        <IconButton icon="camera" size={16} iconColor="#fff" onPress={pickImage} style={{margin:0}} />
+                    </View>
+                </TouchableOpacity>
+                
+                <Text style={styles.userName}>{name || "Chưa đặt tên"}</Text>
+                <Text style={styles.userEmail}>{user?.email}</Text>
+            </View>
+
+            
+            <View style={styles.cardSection}>
+                <Text style={styles.sectionTitle}>Thông tin chi tiết</Text>
+                
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Họ và tên</Text>
+                    <TextInput 
+                        value={name} 
+                        onChangeText={setName} 
+                        mode="outlined" 
+                        style={styles.inputField}
+                        outlineStyle={styles.inputOutline}
+                        activeOutlineColor="#0E4626" 
+                        outlineColor="#E0E0E0"       
+                        textColor="#000"             
+                        placeholder="Nhập họ tên..."
+                        placeholderTextColor="#999"
+                    />
+                </View>
+
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Số điện thoại</Text>
+                    <TextInput 
+                        value={phone} 
+                        onChangeText={setPhone} 
+                        mode="outlined" 
+                        keyboardType="phone-pad" 
+                        style={styles.inputField} 
+                        outlineStyle={styles.inputOutline}
+                        activeOutlineColor="#0E4626"
+                        outlineColor="#E0E0E0"
+                        textColor="#000"
+                        placeholder="Nhập số điện thoại..."
+                        placeholderTextColor="#999"
+                    />
+                </View>
+
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Khu vực sinh sống</Text>
+                    <TextInput 
+                        value={address} 
+                        onChangeText={setAddress} 
+                        mode="outlined" 
+                        style={styles.inputField} 
+                        outlineStyle={styles.inputOutline}
+                        activeOutlineColor="#0E4626"
+                        outlineColor="#E0E0E0"
+                        textColor="#000"
+                        placeholder="Nhập địa chỉ..."
+                        placeholderTextColor="#999"
+                    />
+                </View>
+            </View>
+
+            
+            <Button 
+                mode="contained" 
+                onPress={handleSave} 
+                loading={saving} 
+                style={styles.saveBtn} 
+                labelStyle={styles.saveBtnLabel}
+                icon="content-save"
+            >
+                LƯU THAY ĐỔI
+            </Button>
+
+            <View style={styles.menuSection}>
+                <List.Item 
+                    title="Đăng xuất" 
+                    left={props => <List.Icon {...props} icon="logout" color="#FF9800" />} 
+                    onPress={handleLogout} 
+                    style={styles.menuItem}
+                    titleStyle={{fontWeight: '600', color: '#444'}}
+                    right={props => <List.Icon {...props} icon="chevron-right" color="#ccc" />}
+                />
+                <List.Item 
+                    title="Xóa tài khoản vĩnh viễn" 
+                    description="Hành động không thể hoàn tác"
+                    left={props => <List.Icon {...props} icon="delete-forever" color="#D32F2F" />} 
+                    onPress={handleDeleteAccount} 
+                    style={[styles.menuItem, {backgroundColor: '#FFEBEE', borderColor: '#FFCDD2'}]}
+                    titleStyle={{fontWeight: 'bold', color: '#D32F2F'}}
+                    descriptionStyle={{color: '#B71C1C', fontSize: 12}}
+                />
+            </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

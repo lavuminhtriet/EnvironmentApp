@@ -1,142 +1,265 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
-// [FIX CẢNH BÁO] Đã xóa Modal, Portal, Provider thừa
-import { Text, Card, Button, RadioButton, Appbar, SegmentedButtons } from 'react-native-paper'; 
-import { useRouter } from 'expo-router';
+import { View, ScrollView, Image, TouchableOpacity, Alert, Platform } from 'react-native';
+import { Text, Button, SegmentedButtons, RadioButton, Modal, Portal, IconButton, Avatar } from 'react-native-paper';
+import { useRouter, Stack } from 'expo-router';
+import { styles } from '../styles/learn.styles'; 
 
-// Dữ liệu bài viết
+
 const Articles = [
-  { id: 1, title: 'Phân loại rác tại nguồn', desc: 'Học cách phân biệt rác hữu cơ, vô cơ và tái chế.', img: 'https://img.freepik.com/free-vector/waste-sorting-concept_23-2148602266.jpg' },
-  { id: 2, title: 'Tác hại của rác nhựa', desc: 'Nhựa mất bao lâu để phân hủy? Tại sao nó nguy hiểm?', img: 'https://img.freepik.com/free-vector/no-plastic-concept_23-2148556129.jpg' },
-  { id: 3, title: 'Lối sống Zero Waste', desc: '5 bước đơn giản để bắt đầu lối sống không rác thải.', img: 'https://img.freepik.com/free-vector/zero-waste-elements_23-2148542603.jpg' },
+  { 
+    id: 1, 
+    title: 'Nghệ thuật Phân loại rác tại nguồn', 
+    tag: 'KIẾN THỨC',
+    desc: 'Biến rác thải thành tài nguyên chỉ với vài bước đơn giản tại nhà.', 
+    
+    img: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=2070&auto=format&fit=crop',
+    content: `Phân loại rác tại nguồn là hành động thiết thực giúp giảm tải áp lực lên các bãi chôn lấp và tiết kiệm tài nguyên.\n\n1. Rác hữu cơ (Thùng xanh lá):\nBao gồm thức ăn thừa, rau củ quả hư hỏng, bã trà, bã cà phê... Loại này có thể ủ thành phân bón (Compost) cho cây trồng.\n\n2. Rác tái chế (Thùng trắng/xanh dương):\nBao gồm giấy báo, thùng carton, vỏ lon nhôm, chai nhựa sạch... Hãy làm sạch sơ bộ và phơi khô trước khi bỏ vào thùng.\n\n3. Rác vô cơ (Thùng vàng/cam):\nLà những loại rác còn lại không thể tái chế như túi nilon bẩn, sành sứ vỡ, tã bỉm, vỏ bánh kẹo... Loại này sẽ được đưa đi chôn lấp đúng quy định.`
+  },
+  { 
+    id: 2, 
+    title: 'Hiểm họa từ "Cái chết trắng"', 
+    tag: 'CẢNH BÁO',
+    desc: 'Rác thải nhựa đang âm thầm hủy hoại đại dương và sức khỏe con người như thế nào?', 
+    
+    img: 'https://images.unsplash.com/photo-1618477388954-7852f32655ec?q=80&w=2070&auto=format&fit=crop',
+    content: `Rác thải nhựa đang là vấn nạn "ô nhiễm trắng" toàn cầu.\n\n⏳ Thời gian phân hủy:\nMột chai nhựa mất từ 450 - 1000 năm để phân hủy hoàn toàn. Túi nilon cũng mất hàng trăm năm.\n\n🐟 Hạt vi nhựa (Microplastics):\nNhựa không thực sự biến mất mà vỡ vụn thành hạt vi nhựa. Cá và sinh vật biển ăn phải chúng, và cuối cùng hạt vi nhựa quay trở lại cơ thể con người qua chuỗi thức ăn, gây rối loạn hormone và các bệnh nguy hiểm.\n\n🛑 Hành động ngay:\nHạn chế sử dụng nhựa dùng một lần (ống hút, túi nilon, ly nhựa). Hãy mang theo túi vải và bình nước cá nhân!`
+  },
+  { 
+    id: 3, 
+    title: 'Sống xanh (Zero Waste) cho người mới', 
+    tag: 'LỐI SỐNG',
+    desc: '5 quy tắc vàng giúp bạn bắt đầu lối sống bền vững ngay hôm nay.', 
+    
+    img: 'https://images.unsplash.com/photo-1553531384-cc64ac80f931?q=80&w=1964&auto=format&fit=crop',
+    content: `Zero Waste (Không rác thải) là lối sống nhằm giảm thiểu tối đa lượng rác thải ra môi trường. Hãy áp dụng quy tắc 5R:\n\n1. Refuse (Từ chối):\nNói KHÔNG với những thứ không cần thiết (tờ rơi quảng cáo, túi nilon khi mua đồ nhỏ, ống hút nhựa).\n\n2. Reduce (Tiết giảm):\nMua sắm ít đi, chỉ mua đồ thật sự cần thiết. Sống tối giản.\n\n3. Reuse (Tái sử dụng):\nDùng lại chai lọ, túi vải, hộp đựng nhiều lần thay vì đồ dùng 1 lần.\n\n4. Recycle (Tái chế):\nChỉ tái chế những gì không thể từ chối hay giảm thiểu.\n\n5. Rot (Phân hủy):\nỦ rác hữu cơ thành phân bón cho cây trồng tại nhà.`
+  },
 ];
 
-// Dữ liệu Tra cứu thủ công 
+
 const WasteCategories = [
-    { id: 'organic', name: 'Rác Hữu Cơ', icon: 'https://img.icons8.com/color/96/apple.png', color: '#C8E6C9', desc: 'Thức ăn thừa, vỏ rau củ, bã trà, cà phê.\n-> Dùng làm phân bón hoặc thức ăn chăn nuôi.' },
-    { id: 'recycle', name: 'Rác Tái Chế', icon: 'https://img.icons8.com/color/96/plastic.png', color: '#BBDEFB', desc: 'Giấy, báo, thùng carton, vỏ lon, chai nhựa.\n-> Gom lại để bán phế liệu hoặc tái sản xuất.' },
-    { id: 'inorganic', name: 'Rác Vô Cơ', icon: 'https://img.icons8.com/color/96/trash.png', color: '#FFE0B2', desc: 'Túi nilon bẩn, sành sứ vỡ, tã bỉm.\n-> Bỏ vào thùng rác màu vàng/cam để chôn lấp.' },
-    { id: 'haz', name: 'Chất Thải Hại', icon: 'https://img.icons8.com/color/96/biohazard.png', color: '#FFCDD2', desc: 'Pin, bóng đèn, chai lọ hóa chất, thuốc tây.\n-> Mang đến điểm thu gom chuyên dụng, KHÔNG bỏ chung rác thường.' },
-    { id: 'e-waste', name: 'Rác Điện Tử', icon: 'https://img.icons8.com/color/96/monitor.png', color: '#E1BEE7', desc: 'Điện thoại hư, máy tính, dây sạc.\n-> Mang đến các trạm thu hồi thiết bị điện tử (Việt Nam Tái Chế).' },
+    { id: 'organic', name: 'Rác Hữu Cơ', icon: 'https://img.icons8.com/color/96/apple.png', color: '#E8F5E9', desc: 'Thức ăn thừa, vỏ rau củ, bã trà, cà phê. Dùng làm phân bón.' },
+    { id: 'recycle', name: 'Rác Tái Chế', icon: 'https://img.icons8.com/color/96/plastic.png', color: '#E3F2FD', desc: 'Giấy, báo, vỏ lon, chai nhựa sạch. Gom bán phế liệu.' },
+    { id: 'inorganic', name: 'Rác Vô Cơ', icon: 'https://img.icons8.com/color/96/trash.png', color: '#FFF3E0', desc: 'Túi nilon bẩn, sành sứ vỡ, tã bỉm. Chôn lấp.' },
+    { id: 'haz', name: 'Chất Thải Hại', icon: 'https://img.icons8.com/color/96/biohazard.png', color: '#FFEBEE', desc: 'Pin, bóng đèn, hóa chất. Thu gom riêng.' },
+    { id: 'e-waste', name: 'Rác Điện Tử', icon: 'https://img.icons8.com/color/96/monitor.png', color: '#F3E5F5', desc: 'Điện thoại, máy tính hư. Mang đến điểm thu hồi.' },
 ];
+
 
 const QuizData = [
-  { question: "Rác thải nào sau đây là rác Hữu cơ?", options: ["Túi nilon", "Vỏ chuối", "Pin cũ", "Chai thủy tinh"], correct: "Vỏ chuối" },
-  { question: "Thời gian để chai nhựa phân hủy là bao lâu?", options: ["10 năm", "100 năm", "450 - 1000 năm", "Vĩnh viễn"], correct: "450 - 1000 năm" }
+  { question: "Loại rác nào sau đây CÓ THỂ tái chế?", options: ["Túi nilon bẩn", "Vỏ chai nhựa sạch", "Tã giấy đã dùng"], answer: "Vỏ chai nhựa sạch" },
+  { question: "Hành động nào giúp tiết kiệm điện?", options: ["Bật đèn khi trời sáng", "Tắt thiết bị khi không dùng", "Mở cửa tủ lạnh lâu"], answer: "Tắt thiết bị khi không dùng" },
+  { question: "Thời gian phân hủy của chai nhựa là?", options: ["10 năm", "100 năm", "450 - 1000 năm"], answer: "450 - 1000 năm" },
 ];
 
 export default function LearnScreen() {
   const router = useRouter();
-  const [tab, setTab] = useState<'learn' | 'lookup' | 'quiz'>('learn'); 
+  const [tab, setTab] = useState('articles');
   
-  // Quiz state
-  const [currentQ, setCurrentQ] = useState(0);
-  const [selected, setSelected] = useState<string>('');
-  const [score, setScore] = useState(0);
-  const [finished, setFinished] = useState(false);
+  const [visibleModal, setVisibleModal] = useState(false);
+  const [currentArticle, setCurrentArticle] = useState<any>(null);
 
-  const handleAnswer = () => {
-    if (selected === QuizData[currentQ].correct) {
-      setScore(score + 1);
-      Alert.alert("Chính xác! 🎉");
-    } else {
-      Alert.alert("Sai rồi!", `Đáp án đúng là: ${QuizData[currentQ].correct}`);
-    }
-    if (currentQ < QuizData.length - 1) {
-      setCurrentQ(currentQ + 1);
-      setSelected('');
-    } else {
-      setFinished(true);
-    }
+  const [lookupVisible, setLookupVisible] = useState(false);
+  const [currentCat, setCurrentCat] = useState<any>(null);
+
+  const [currentQ, setCurrentQ] = useState(0);
+
+  const [score, setScore] = useState(0);
+  const [selectedOption, setSelectedOption] = useState('');
+  const [showResult, setShowResult] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+
+  const openArticle = (article: any) => { setCurrentArticle(article); setVisibleModal(true); };
+  const openLookup = (cat: any) => { setCurrentCat(cat); setLookupVisible(true); };
+
+  const handleCheckAnswer = () => {
+    if (!selectedOption) { Alert.alert("Chưa chọn!", "Vui lòng chọn một đáp án."); return; }
+    const correct = selectedOption === QuizData[currentQ].answer;
+    setIsCorrect(correct);
+    if (correct) setScore(score + 1);
+    setFeedbackVisible(true);
   };
+
+  const handleNextQuestion = () => {
+    setFeedbackVisible(false);
+    if (currentQ < QuizData.length - 1) {
+      setCurrentQ(currentQ + 1); setSelectedOption('');
+    } else { setShowResult(true); }
+  };
+
+  const resetQuiz = () => { setCurrentQ(0); setScore(0); setSelectedOption(''); setShowResult(false); };
 
   return (
     <View style={styles.container}>
-       <Appbar.Header style={{backgroundColor: '#fff'}}>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Học tập & Nhận thức" />
-      </Appbar.Header>
+       <Stack.Screen options={{ headerShown: false }} />
+       
+       
+       <View style={styles.headerBar}>
+            <IconButton icon="arrow-left" onPress={() => router.back()} iconColor="#0E4626" size={26} style={styles.backBtn} />
+            <Text style={styles.headerTitle}>Góc Học Tập</Text>
+            <View style={{width: 40}} /> 
+       </View>
 
-      <View style={{padding: 15, paddingBottom: 5}}>
-        <SegmentedButtons
-            value={tab}
-            onValueChange={val => setTab(val as any)}
-            buttons={[
-            { value: 'learn', label: 'Bài viết' },
-            { value: 'lookup', label: 'Tra cứu' }, 
-            { value: 'quiz', label: 'Đố vui' },
-            ]}
-        />
-      </View>
+       
+       <View style={styles.tabContainer}>
+            <SegmentedButtons
+                value={tab}
+                onValueChange={setTab}
+                buttons={[
+                { value: 'articles', label: 'Bài viết', icon: 'book-open-page-variant' },
+                { value: 'lookup', label: 'Tra cứu', icon: 'magnify' }, 
+                { value: 'quiz', label: 'Đố vui', icon: 'gamepad-variant' },
+                ]}
+                style={styles.segmentBtn}
+                theme={{ colors: { secondaryContainer: '#0E4626', onSecondaryContainer: '#fff' } }}
+            />
+       </View>
 
-      <ScrollView contentContainerStyle={{padding: 15}}>
-        {tab === 'learn' && (
-          Articles.map(article => (
-            <Card key={article.id} style={styles.articleCard}>
-              <Card.Cover source={{ uri: article.img }} style={{height: 140}} />
-              <Card.Title title={article.title} titleStyle={{fontWeight: 'bold'}} />
-              <Card.Content><Text>{article.desc}</Text></Card.Content>
-              <Card.Actions><Button>Đọc ngay</Button></Card.Actions>
-            </Card>
-          ))
-        )}
-
-        {tab === 'lookup' && (
-             <View>
-                 <Text variant="titleMedium" style={{marginBottom: 10, textAlign: 'center'}}>Danh mục phân loại rác</Text>
-                 {WasteCategories.map(cat => (
-                     <TouchableOpacity key={cat.id} onPress={() => Alert.alert(cat.name, cat.desc)}>
-                        <Card style={[styles.catCard, {backgroundColor: cat.color}]}>
-                            <View style={styles.catRow}>
-                                <Image source={{uri: cat.icon}} style={{width: 60, height: 60, marginRight: 15}} />
-                                <View style={{flex: 1}}>
-                                    <Text variant="titleMedium" style={{fontWeight: 'bold'}}>{cat.name}</Text>
-                                    <Text variant="bodySmall" numberOfLines={2}>{cat.desc}</Text>
-                                </View>
+       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            
+            
+            {tab === 'articles' && (
+                <View>
+                    {Articles.map(item => (
+                        <TouchableOpacity key={item.id} activeOpacity={0.95} onPress={() => openArticle(item)} style={styles.articleCard}>
+                            <Image source={{ uri: item.img }} style={styles.articleImage} resizeMode="cover" />
+                            <View style={styles.articleContent}>
+                                <Text style={styles.articleTag}>{item.tag}</Text>
+                                <Text style={styles.articleTitle}>{item.title}</Text>
+                                <Text style={styles.articleDesc} numberOfLines={2}>{item.desc}</Text>
+                                <Button mode="outlined" onPress={() => openArticle(item)} style={styles.readMoreBtn} labelStyle={{color:'#54bb81ff', fontSize: 12}} icon="arrow-right" contentStyle={{flexDirection:'row-reverse'}}>Đọc tiếp</Button>
                             </View>
-                        </Card>
-                     </TouchableOpacity>
-                 ))}
-             </View>
-        )}
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
 
-        {tab === 'quiz' && (
-          !finished ? (
-            <Card style={styles.quizCard}>
-              <Card.Title title={`Câu hỏi ${currentQ + 1}/${QuizData.length}`} />
-              <Card.Content>
-                <Text variant="titleLarge" style={{marginBottom: 20}}>{QuizData[currentQ].question}</Text>
-                <RadioButton.Group onValueChange={val => setSelected(val)} value={selected}>
-                  {QuizData[currentQ].options.map((opt, index) => (
-                    <View key={index} style={styles.radioOption}>
-                      <RadioButton value={opt} />
-                      <Text>{opt}</Text>
+            
+            {tab === 'lookup' && (
+                <View>
+                    {WasteCategories.map(cat => (
+                        <TouchableOpacity key={cat.id} onPress={() => openLookup(cat)} activeOpacity={0.8}>
+                            <View style={styles.catCard}>
+                                <View style={[styles.catIconBox, {backgroundColor: cat.color}]}>
+                                    <Image source={{uri: cat.icon}} style={styles.catIcon} />
+                                </View>
+                                <View style={styles.catInfo}>
+                                    <Text style={styles.catName}>{cat.name}</Text>
+                                    <Text style={styles.catDesc} numberOfLines={1}>{cat.desc}</Text>
+                                </View>
+                                <IconButton icon="chevron-right" size={20} iconColor="#ccc" />
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            
+            {tab === 'quiz' && (
+                <View>
+                    {showResult ? (
+                        <View style={styles.resultView}>
+                            <Avatar.Icon size={100} icon={score === QuizData.length ? "trophy" : "emoticon-happy"} style={{backgroundColor: score === QuizData.length ? '#FFD700' : '#C8E6C9'}} color={score === QuizData.length ? '#fff' : '#0E4626'} />
+                            <Text style={styles.scoreTitle}>Hoàn thành!</Text>
+                            <Text style={styles.scoreValue}>{score}/{QuizData.length}</Text>
+                            <Text style={styles.scoreSub}>Câu trả lời đúng</Text>
+                            <Button mode="contained" onPress={resetQuiz} style={styles.retryBtn} icon="refresh" labelStyle={{fontSize: 16, fontWeight: 'bold'}}>Chơi lại</Button>
+                        </View>
+                    ) : (
+                        <View style={styles.quizContainer}>
+                            <View style={styles.quizHeader}>
+                                <Avatar.Icon size={24} icon="help" style={{backgroundColor: '#FFF8E1'}} color='#FF9800' />
+                                <Text style={styles.questionCount}>Câu hỏi {currentQ + 1}/{QuizData.length}</Text>
+                            </View>
+                            <Text style={styles.questionText}>{QuizData[currentQ].question}</Text>
+                            
+                            {QuizData[currentQ].options.map((opt, index) => (
+                                <TouchableOpacity 
+                                    key={index} 
+                                    style={[styles.answerBtn, selectedOption === opt && styles.answerBtnSelected]} 
+                                    onPress={() => setSelectedOption(opt)}
+                                    activeOpacity={0.8}
+                                >
+                                    {/* Radio button giả lập */}
+                                    <View style={{
+                                        width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: selectedOption === opt ? '#0E4626' : '#aaa',
+                                        justifyContent: 'center', alignItems: 'center', marginRight: 15
+                                    }}>
+                                        {selectedOption === opt && <View style={{width: 12, height: 12, borderRadius: 6, backgroundColor: '#0E4626'}} />}
+                                    </View>
+                                    <Text style={[styles.answerText, selectedOption === opt && styles.answerTextSelected]}>
+                                        {opt}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+
+                            <Button 
+                                mode="contained" 
+                                onPress={handleCheckAnswer} 
+                                style={styles.quizSubmitBtn} 
+                                labelStyle={{fontSize: 18, fontWeight: 'bold', color: '#fff'}}
+                            >
+                                Kiểm tra
+                            </Button>
+                        </View>
+                    )}
+                </View>
+            )}
+       </ScrollView>
+
+       
+       <Portal>
+            <Modal visible={visibleModal} onDismiss={() => setVisibleModal(false)} contentContainerStyle={styles.modalContainer}>
+                <View style={{flex:1}}>
+                    <View style={styles.modalHeader}>
+                        <IconButton icon="close" onPress={() => setVisibleModal(false)} iconColor="#333" size={28}/>
+                        <Text style={{fontSize: 16, fontWeight: 'bold', color: '#0E4626'}}>Bài viết</Text>
+                        <View style={{width: 48}}/>
                     </View>
-                  ))}
-                </RadioButton.Group>
-                <Button mode="contained" onPress={handleAnswer} disabled={!selected} style={{marginTop: 20}}>
-                  Trả lời
-                </Button>
-              </Card.Content>
-            </Card>
-          ) : (
-            <View style={{alignItems: 'center', marginTop: 50}}>
-              <Text variant="headlineMedium" style={{fontWeight: 'bold', color: '#2E7D32'}}>Hoàn thành!</Text>
-              <Text variant="titleMedium">Điểm số: {score}/{QuizData.length}</Text>
-              <Button mode="contained" onPress={() => {setFinished(false); setCurrentQ(0); setScore(0)}} style={{marginTop: 20}}>Làm lại</Button>
-            </View>
-          )
-        )}
-      </ScrollView>
+                    <ScrollView contentContainerStyle={styles.modalScroll}>
+                        {currentArticle && (
+                            <>
+                                <Image source={{ uri: currentArticle.img }} style={styles.modalImg} resizeMode="cover" />
+                                <View style={styles.modalContentBox}>
+                                    <Text style={styles.articleTag}>{currentArticle.tag}</Text>
+                                    <Text style={styles.modalTitle}>{currentArticle.title}</Text>
+                                    <Text style={styles.modalBody}>{currentArticle.content}</Text>
+                                </View>
+                            </>
+                        )}
+                    </ScrollView>
+                </View>
+            </Modal>
+       </Portal>
+
+       
+       <Portal>
+            <Modal visible={lookupVisible} onDismiss={() => setLookupVisible(false)} contentContainerStyle={styles.lookupModal}>
+               {currentCat && (
+                   <>
+                        <View style={[styles.lookupIconWrapper, {backgroundColor: currentCat.color}]}>
+                            <Image source={{ uri: currentCat.icon }} style={styles.lookupIconLarge} />
+                        </View>
+                        <Text style={styles.lookupTitle}>{currentCat.name}</Text>
+                        <Text style={styles.lookupDesc}>{currentCat.desc}</Text>
+                        <Button mode="contained" onPress={() => setLookupVisible(false)} style={styles.lookupCloseBtn} labelStyle={{fontSize: 16, fontWeight:'bold'}}>Đóng</Button>
+                   </>
+               )}
+            </Modal>
+       </Portal>
+
+       
+       <Portal>
+           <Modal visible={feedbackVisible} onDismiss={() => {}} contentContainerStyle={styles.feedbackModal} dismissable={false}>
+               <View style={[styles.feedbackIconBox, {backgroundColor: isCorrect ? '#E8F5E9' : '#FFEBEE'}]}>
+                   <Avatar.Icon size={48} icon={isCorrect ? "check" : "close"} style={{backgroundColor: 'transparent'}} color={isCorrect ? '#4CAF50' : '#D32F2F'} />
+               </View>
+               <Text style={[styles.feedbackTitle, {color: isCorrect ? '#2E7D32' : '#D32F2F'}]}>{isCorrect ? "Chính xác! 🎉" : "Sai rồi! 😓"}</Text>
+               <Text style={styles.feedbackDesc}>{isCorrect ? "Bạn đã nhận được điểm. Hãy tiếp tục nhé!" : `Đáp án đúng là: "${QuizData[currentQ]?.answer}"`}</Text>
+               <Button mode="contained" onPress={handleNextQuestion} style={[styles.feedbackBtn, {backgroundColor: isCorrect ? '#0E4626' : '#D32F2F'}]} labelStyle={{color:'#fff', fontWeight: 'bold'}}>{currentQ < QuizData.length - 1 ? "Câu tiếp theo" : "Xem kết quả"}</Button>
+           </Modal>
+       </Portal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  articleCard: { marginBottom: 15, backgroundColor: '#fff' },
-  quizCard: { padding: 10, backgroundColor: '#fff' },
-  radioOption: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
-  catCard: { marginBottom: 10, padding: 10, borderRadius: 12 },
-  catRow: { flexDirection: 'row', alignItems: 'center' }
-});

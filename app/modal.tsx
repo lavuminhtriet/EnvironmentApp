@@ -9,7 +9,7 @@ export default function ModalScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Hiển thị thanh trạng thái phù hợp với Modal */}
+      
       <StatusBar style="light" />
       
       <Text variant="headlineMedium" style={styles.title}>Thông báo</Text>
@@ -17,7 +17,7 @@ export default function ModalScreen() {
         Đây là màn hình Modal mẫu. Bạn có thể dùng nó để hiển thị chi tiết thông tin hoặc xác nhận hành động.
       </Text>
 
-      {/* Nút đóng Modal */}
+      
       <Button 
         mode="contained" 
         onPress={() => router.back()} 
