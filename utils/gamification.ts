@@ -1,4 +1,4 @@
-import { db, auth } from '../firebaseConfig';
+import { db, auth } from '../firebaseConfig'; 
 import { doc, updateDoc, increment, getDoc, setDoc } from 'firebase/firestore';
 import { Alert } from 'react-native';
 
@@ -14,25 +14,30 @@ export const addPoints = async (points: number, reason: string) => {
       score: increment(points)
     });
 
-    // 2. Kiểm tra thăng cấp (Ví dụ: Đủ 100 điểm lên cấp Chiến binh)
+    // 2. Kiểm tra thăng cấp (Logic FR-9.1.2)
     const userSnap = await getDoc(userRef);
-    const currentScore = userSnap.data()?.score || 0;
+    const currentScore = (userSnap.data()?.score || 0); // Lấy điểm hiện tại sau khi cộng
     
-    let newBadge = null;
-    if (currentScore >= 50 && currentScore < 100) newBadge = 'Người Xanh';
-    if (currentScore >= 100 && currentScore < 200) newBadge = 'Chiến Binh';
-    if (currentScore >= 200) newBadge = 'Siêu Anh Hùng';
+    let newBadge = 'Tân binh';
+    // Quy định mốc điểm:
+    if (currentScore >= 50 && currentScore < 200) newBadge = 'Người xanh';
+    if (currentScore >= 200 && currentScore < 500) newBadge = 'Chiến binh môi trường';
+    if (currentScore >= 500) newBadge = 'Thành phố sạch';
 
-    if (newBadge) {
+    const currentBadge = userSnap.data()?.badge || '';
+
+    // Chỉ cập nhật và thông báo nếu Badge thay đổi và không phải Tân binh
+    if (newBadge !== currentBadge && newBadge !== 'Tân binh') {
       await updateDoc(userRef, { badge: newBadge });
-      Alert.alert("🎉 Chúc mừng!", `Bạn đã nhận được +${points} điểm và thăng cấp: ${newBadge}`);
-    } else {
-      Alert.alert("🎉 Tuyệt vời!", `Bạn đã nhận được +${points} điểm từ việc ${reason}.`);
-    }
+      Alert.alert(
+        "🎉 THĂNG CẤP MỚI!", 
+        `Chúc mừng! Bạn đã đạt danh hiệu: "${newBadge}"\nHãy tiếp tục bảo vệ môi trường nhé!`
+      );
+    } 
 
   } catch (error) {
     console.error("Lỗi cộng điểm:", error);
-    // Nếu user chưa có field score thì tạo mới
-    await setDoc(userRef, { score: points }, { merge: true });
+    // Nếu user mới chưa có doc thì tạo mới
+    await setDoc(userRef, { score: points, badge: 'Tân binh' }, { merge: true });
   }
 };
